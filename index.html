@@ -1,0 +1,1990 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SmartBaby 育儿记录</title>
+    
+    <!-- 外部资源 -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .action-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .action-card:hover, .action-card:active {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.12);
+        }
+        
+        .baby-tag {
+            transition: all 0.3s ease;
+            border-radius: 20px;
+        }
+        
+        .baby-tag.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .modal-content {
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background: white;
+            border-radius: 32px 32px 0 0;
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.9);
+            color: #667eea;
+            border-radius: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid #667eea;
+        }
+        
+        .input-field {
+            background: #F7FAFC;
+            border: 2px solid #E2E8F0;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .input-field:focus {
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .segment-btn.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .timeline-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .timeline-time {
+            min-width: 60px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .timeline-time::after {
+            content: '';
+            width: 2px;
+            flex: 1;
+            background: #E2E8F0;
+            margin-top: 8px;
+        }
+        
+        .timeline-item:last-child .timeline-time::after {
+            display: none;
+        }
+        
+        .timeline-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-bottom: 8px;
+        }
+        
+        .timeline-content {
+            flex: 1;
+            background: #F8FAFC;
+            border-radius: 16px;
+            padding: 16px;
+        }
+        
+        .chip {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen pb-24">
+        <!-- 顶部宝宝选择栏 -->
+        <header class="sticky top-0 z-50 pt-4 px-4 pb-2">
+            <div class="glass-card p-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h1 class="text-2xl font-bold text-gray-800">👶 SmartBaby</h1>
+                    <div class="flex items-center space-x-2">
+                        <button @click="showFilterModal = true" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-purple-600">
+                            🔍
+                        </button>
+                        <button @click="exportExcel" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-purple-600">
+                            📊
+                        </button>
+                        <button @click="downloadHTML" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-purple-600">
+                            💾
+                        </button>
+                        <button @click="showSettingsModal = true" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-purple-600">
+                            ⚙️
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 宝宝标签选择 -->
+                <div class="flex space-x-2 overflow-x-auto pb-1">
+                    <button v-for="baby in Object.values(babies)" :key="baby.id"
+                            @click="switchBaby(baby.id)"
+                            class="baby-tag flex items-center px-4 py-2 whitespace-nowrap font-semibold text-sm"
+                            :class="{ active: baby.id === currentBabyId }">
+                        <span class="mr-2 text-base">{{ baby.emoji }}</span>
+                        {{ baby.name }}
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="px-4 py-4">
+            <!-- 记录页 -->
+            <div v-if="currentPage === 'log'">
+                <!-- SweetSpot 预测卡片 -->
+                <div class="glass-card p-6 mb-6 bg-gradient-to-br from-blue-500 to-purple-600 text-white">
+                    <div class="flex justify-between items-start mb-5">
+                        <div>
+                            <div class="text-sm font-medium opacity-90 mb-2">✨ SmartSleep AI 预测</div>
+                            <div class="text-5xl font-bold mb-2">{{ nextNapTime }}</div>
+                            <div class="text-lg opacity-90">{{ sweetSpotLabel }}</div>
+                            <div class="text-sm opacity-80 mt-1">🎯 最佳哄睡: {{ sweetSpotTime }}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-4xl font-bold mb-2">{{ nextNapCountdown }}</div>
+                            <div class="text-sm opacity-90">分钟后</div>
+                            <div class="chip bg-white/20 text-white mt-2">
+                                清醒窗口 {{ currentWakeWindow }} 分钟
+                            </div>
+                            <div class="chip bg-white/20 text-white mt-1" style="font-size:11px;">
+                                第{{ currentNapIndex }}觉{{ isLastWindowLabel }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="w-full bg-white/20 rounded-full h-2.5 overflow-hidden">
+                        <div class="bg-white h-full rounded-full transition-all duration-500" :style="{ width: wakeWindowProgress + '%' }"></div>
+                    </div>
+                </div>
+
+                <!-- 核心功能按钮 - 缩小尺寸 -->
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <button @click="openSleepModal" class="action-card py-6 flex flex-col items-center justify-center">
+                        <span class="text-4xl mb-2">😴</span>
+                        <span class="font-semibold text-gray-800 text-sm">睡眠</span>
+                        <span v-if="activeTimer.type === 'sleep'" class="chip mt-1 text-xs">计时中</span>
+                    </button>
+                    
+                    <button @click="openFeedingModal" class="action-card py-6 flex flex-col items-center justify-center">
+                        <span class="text-4xl mb-2">🍼</span>
+                        <span class="font-semibold text-gray-800 text-sm">喂养</span>
+                        <span class="text-xs text-gray-500 mt-1">
+                            {{ lastFeeding ? lastFeeding.time : '记录' }}
+                        </span>
+                    </button>
+                    
+                    <button @click="openDiaperModal" class="action-card py-6 flex flex-col items-center justify-center">
+                        <span class="text-4xl mb-2">💩</span>
+                        <span class="font-semibold text-gray-800 text-sm">尿布</span>
+                        <span class="text-xs text-gray-500 mt-1">记录</span>
+                    </button>
+                </div>
+
+                <!-- 活跃计时器 -->
+                <div v-if="activeTimer.type" class="glass-card p-6 mb-6 border-2 border-purple-500">
+                    <div class="flex justify-between items-center mb-5">
+                        <h3 class="text-xl font-bold text-gray-800">
+                            {{ activeTimer.type === 'sleep' ? '😴 睡眠计时' : '🍼 喂奶计时' }}
+                        </h3>
+                        <button @click="stopTimer" class="bg-red-500 text-white px-5 py-2 rounded-full text-sm font-semibold shadow-lg">
+                            结束
+                        </button>
+                    </div>
+                    <div class="flex justify-center space-x-4 items-center mb-6">
+                        <span class="text-5xl font-bold text-gray-800 font-mono">{{ formatTime(activeTimer.duration).hours }}</span>
+                        <span class="text-3xl font-bold text-gray-400">:</span>
+                        <span class="text-5xl font-bold text-gray-800 font-mono">{{ formatTime(activeTimer.duration).minutes }}</span>
+                        <span class="text-3xl font-bold text-gray-400">:</span>
+                        <span class="text-3xl font-bold text-gray-400 font-mono">{{ formatTime(activeTimer.duration).seconds }}</span>
+                    </div>
+                    <div class="flex justify-center space-x-4">
+                        <button @click="pauseTimer" v-if="!activeTimer.paused" class="px-6 py-3 bg-yellow-500 text-white rounded-xl font-semibold shadow-md text-sm">
+                            暂停
+                        </button>
+                        <button @click="resumeTimer" v-if="activeTimer.paused" class="px-6 py-3 bg-green-500 text-white rounded-xl font-semibold shadow-md text-sm">
+                            继续
+                        </button>
+                        <button @click="resetTimer" class="px-6 py-3 bg-gray-500 text-white rounded-xl font-semibold shadow-md text-sm">
+                            重置
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 今日统计 -->
+                <div class="grid grid-cols-3 gap-3 mb-6">
+                    <div class="glass-card p-4 text-center">
+                        <div class="text-sm text-gray-600 mb-1">总睡眠</div>
+                        <div class="text-3xl font-bold text-blue-600 mb-1">{{ todayStats.sleep }}h</div>
+                        <div class="text-xs text-gray-500">今日累计</div>
+                    </div>
+                    <div class="glass-card p-4 text-center">
+                        <div class="text-sm text-gray-600 mb-1">总奶量</div>
+                        <div class="text-3xl font-bold text-red-500 mb-1">{{ todayStats.feeding }}ml</div>
+                        <div class="text-xs text-gray-500">今日累计</div>
+                    </div>
+                    <div class="glass-card p-4 text-center">
+                        <div class="text-sm text-gray-600 mb-1">换尿布</div>
+                        <div class="text-3xl font-bold text-green-500 mb-1">{{ todayStats.diaper }}</div>
+                        <div class="text-xs text-gray-500">今日累计</div>
+                    </div>
+                </div>
+
+                <!-- 筛选和日期导航 -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="flex space-x-2">
+                        <button v-for="filter in ['日', '周', '月', '全部']" :key="filter"
+                                @click="currentFilter = filter"
+                                class="filter-btn px-3 py-1 rounded-full text-sm font-medium"
+                                :class="{ active: currentFilter === filter }">
+                            {{ filter }}
+                        </button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button @click="prevPeriod" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                        <span class="text-white font-medium bg-white/20 px-3 py-1 rounded-full text-sm cursor-pointer relative" @click="$refs.datePickerLog.showPicker ? $refs.datePickerLog.showPicker() : $refs.datePickerLog.click()">
+                            {{ currentDateDisplay }}
+                            <input type="date" ref="datePickerLog" @change="onDatePick($event)"
+                                   style="position:absolute;opacity:0;width:0;height:0;top:0;left:0;">
+                        </span>
+                        <button @click="nextPeriod" class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 时间轴记录 -->
+                <div>
+                    <h3 class="text-xl font-bold text-white mb-4">📝 记录</h3>
+                    
+                    <div class="glass-card p-6">
+                        <div v-if="filteredRecords.length === 0" class="text-center py-12">
+                            <div class="text-6xl mb-4">📭</div>
+                            <div class="text-gray-600 text-lg mb-2">暂无记录</div>
+                            <div class="text-gray-400 text-sm">点击上方按钮开始记录宝宝的成长吧</div>
+                        </div>
+                        
+                        <div class="space-y-0">
+                            <div v-for="record in filteredRecords" :key="record.id" class="timeline-item">
+                                <div class="timeline-time">
+                                    <div class="timeline-dot" :style="{ background: getRecordColor(record) }"></div>
+                                    <div class="text-xs font-bold text-gray-700 whitespace-nowrap">{{ record.time }}</div>
+                                    <div class="text-[10px] text-gray-400">{{ record.date }}</div>
+                                </div>
+                                
+                                <div class="timeline-content">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <div class="font-semibold text-gray-800 mb-1">
+                                                {{ getRecordTitle(record) }}
+                                            </div>
+                                            <div class="text-sm text-gray-500 mb-2">
+                                                {{ getRecordDetail(record) }}
+                                            </div>
+                                            <div v-if="record.note" class="text-sm text-gray-600 bg-white p-2 rounded-lg">
+                                                📝 {{ record.note }}
+                                            </div>
+                                        </div>
+                                        <div class="flex space-x-2">
+                                            <button @click="editRecord(record)" class="text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded-full font-medium">
+                                                编辑
+                                            </button>
+                                            <button @click="deleteRecord(record)" class="text-xs text-red-500 bg-red-50 px-2 py-1 rounded-full font-medium">
+                                                删除
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据页 -->
+            <div v-if="currentPage === 'stats'">
+                <!-- 顶部日期选择和维度切换 -->
+                <div class="glass-card p-5 mb-6">
+                    <div class="flex justify-between items-center mb-5">
+                        <button @click="prevPeriod" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-purple-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                        <span class="text-xl font-bold text-gray-800">{{ currentPeriodDisplay }}</span>
+                        <button @click="nextPeriod" class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-purple-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="flex bg-gray-100 p-1 rounded-xl">
+                        <button v-for="period in ['日', '周', '月']" :key="period"
+                                @click="changePeriod(period)"
+                                class="segment-btn flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all"
+                                :class="{ active: currentPeriod === period }">
+                            {{ period }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 统计卡片 -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="glass-card p-5">
+                        <div class="text-sm text-gray-500 mb-2">平均睡眠</div>
+                        <div class="text-4xl font-bold text-blue-600 mb-2">{{ periodStats.averageSleep }}h</div>
+                        <div class="chip">
+                            <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                            </svg>
+                            {{ periodStats.sleepTrend }}%
+                        </div>
+                    </div>
+                    
+                    <div class="glass-card p-5">
+                        <div class="text-sm text-gray-500 mb-2">平均奶量</div>
+                        <div class="text-4xl font-bold text-red-500 mb-2">{{ periodStats.averageFeeding }}ml</div>
+                        <div class="chip">
+                            <svg class="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                            </svg>
+                            {{ periodStats.feedingTrend }}%
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 睡眠趋势图 -->
+                <div class="glass-card p-6 mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">📈 睡眠时长趋势</h3>
+                    <div class="h-64">
+                        <canvas id="sleepChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 喂奶量趋势图 -->
+                <div class="glass-card p-6 mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">🍼 喂奶量趋势</h3>
+                    <div class="h-64">
+                        <canvas id="feedingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部导航 -->
+        <nav class="fixed bottom-0 w-full px-4 pb-4 z-40">
+            <div class="glass-card flex justify-around p-2">
+                <button @click="currentPage = 'log'" 
+                        class="flex flex-col items-center px-8 py-3 rounded-2xl transition-colors"
+                        :class="{ 'bg-purple-100 text-purple-600': currentPage === 'log' }">
+                    <span class="text-2xl mb-1">📝</span>
+                    <span class="text-xs font-semibold">记录</span>
+                </button>
+                
+                <button @click="switchToStats" 
+                        class="flex flex-col items-center px-8 py-3 rounded-2xl transition-colors"
+                        :class="{ 'bg-purple-100 text-purple-600': currentPage === 'stats' }">
+                    <span class="text-2xl mb-1">📊</span>
+                    <span class="text-xs font-semibold">数据</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- 睡眠记录弹窗 -->
+        <div v-if="showSleepModal" class="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" @click.self="showSleepModal = false">
+            <div class="modal-content w-full max-w-md p-6" style="max-height: 90vh;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">😴 记录睡眠</h3>
+                    <button @click="showSleepModal = false" class="text-gray-400">✕</button>
+                </div>
+
+                <!-- 记录方式选择 -->
+                <div class="flex bg-gray-100 p-1 rounded-xl mb-6">
+                    <button @click="sleepForm.mode = 'timer'"
+                            class="segment-btn flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all"
+                            :class="{ active: sleepForm.mode === 'timer' }">
+                        实时计时
+                    </button>
+                    <button @click="sleepForm.mode = 'manual'"
+                            class="segment-btn flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all"
+                            :class="{ active: sleepForm.mode === 'manual' }">
+                        手动输入
+                    </button>
+                </div>
+
+                <!-- 实时计时模式 -->
+                <div v-if="sleepForm.mode === 'timer'">
+                    <button @click="startSleepTimer" class="w-full py-6 btn-primary text-lg mb-4" :disabled="activeTimer.type === 'sleep'">
+                        {{ activeTimer.type === 'sleep' ? '⏱️ 计时中...' : '▶️ 开始计时' }}
+                    </button>
+                    <div class="text-sm text-gray-500 text-center">
+                        点击开始后将自动记录宝宝的睡眠时长
+                    </div>
+                </div>
+
+                <!-- 手动输入模式 -->
+                <div v-if="sleepForm.mode === 'manual'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">入睡时间</label>
+                    <input type="datetime-local" v-model="sleepForm.startTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+                    
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">醒来时间</label>
+                    <input type="datetime-local" v-model="sleepForm.endTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+                    
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">备注 (可选)</label>
+                    <textarea v-model="sleepForm.note" class="input-field w-full text-lg py-3 px-4 min-h-[100px] mb-4" placeholder="记录睡眠质量、环境等信息..."></textarea>
+
+                    <button @click="saveSleepRecord" class="w-full py-4 btn-primary text-lg mt-4">
+                        💾 保存记录
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 喂养记录弹窗 -->
+        <div v-if="showFeedingModal" class="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" @click.self="showFeedingModal = false">
+            <div class="modal-content w-full max-w-md p-6" style="max-height: 90vh;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">🍼 记录喂养</h3>
+                    <button @click="showFeedingModal = false" class="text-gray-400">✕</button>
+                </div>
+
+                <!-- 喂养类型选择 -->
+                <div class="flex bg-gray-100 p-1 rounded-xl mb-6">
+                    <button v-for="type in ['瓶喂', '母乳', '辅食', '补剂']" :key="type"
+                            @click="feedingForm.type = type"
+                            class="segment-btn flex-1 py-3 px-4 text-sm font-semibold rounded-xl transition-all"
+                            :class="{ active: feedingForm.type === type }">
+                        {{ type }}
+                    </button>
+                </div>
+
+                <!-- 通用时间字段 -->
+                <label class="block text-sm font-semibold text-gray-700 mb-2">喂养时间</label>
+                <input type="datetime-local" v-model="feedingForm.dateTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+
+                <!-- 瓶喂表单 -->
+                <div v-if="feedingForm.type === '瓶喂'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">奶量 (ml)</label>
+                    <input type="number" v-model.number="feedingForm.amount" class="input-field w-full text-lg py-3 px-4 mb-4">
+                </div>
+
+                <!-- 母乳表单 -->
+                <div v-if="feedingForm.type === '母乳'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">左侧时长 (分钟)</label>
+                    <input type="number" v-model.number="feedingForm.leftDuration" class="input-field w-full text-lg py-3 px-4 mb-4">
+                    
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">右侧时长 (分钟)</label>
+                    <input type="number" v-model.number="feedingForm.rightDuration" class="input-field w-full text-lg py-3 px-4 mb-4">
+                </div>
+
+                <!-- 辅食表单 -->
+                <div v-if="feedingForm.type === '辅食'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">辅食类型</label>
+                    <input type="text" v-model="feedingForm.foodType" class="input-field w-full text-lg py-3 px-4 mb-4" placeholder="例如: 米粉、蔬菜泥">
+                    
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">摄入量</label>
+                    <input type="text" v-model="feedingForm.foodAmount" class="input-field w-full text-lg py-3 px-4 mb-4" placeholder="例如: 50g、2勺">
+                </div>
+
+                <!-- 补剂表单 -->
+                <div v-if="feedingForm.type === '补剂'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">补剂名称</label>
+                    <input type="text" v-model="feedingForm.supplementName" class="input-field w-full text-lg py-3 px-4 mb-4" placeholder="例如: 维生素D">
+                    
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">剂量</label>
+                    <input type="text" v-model="feedingForm.supplementDose" class="input-field w-full text-lg py-3 px-4 mb-4" placeholder="例如: 1粒、400IU">
+                </div>
+
+                <!-- 备注字段 -->
+                <label class="block text-sm font-semibold text-gray-700 mb-2">备注 (可选)</label>
+                <textarea v-model="feedingForm.note" class="input-field w-full text-lg py-3 px-4 min-h-[80px] mb-4" placeholder="记录喂养情况、反应等信息..."></textarea>
+
+                <!-- 保存按钮 -->
+                <button @click="saveFeedingRecord" class="w-full py-4 btn-primary text-lg mt-4">
+                    💾 保存记录
+                </button>
+            </div>
+        </div>
+
+        <!-- 尿布记录弹窗 -->
+        <div v-if="showDiaperModal" class="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" @click.self="showDiaperModal = false">
+            <div class="modal-content w-full max-w-md p-6" style="max-height: 80vh;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">💩 记录换尿布</h3>
+                    <button @click="showDiaperModal = false" class="text-gray-400">✕</button>
+                </div>
+
+                <label class="block text-sm font-semibold text-gray-700 mb-3">尿布类型</label>
+                <div class="grid grid-cols-3 gap-2 mb-5">
+                    <button @click="diaperForm.type = 'wet'"
+                            class="py-4 rounded-xl border-2 font-semibold transition-colors"
+                            :class="diaperForm.type === 'wet' ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 bg-gray-50 text-gray-500'">
+                        💧 湿
+                    </button>
+                    <button @click="diaperForm.type = 'dirty'"
+                            class="py-4 rounded-xl border-2 font-semibold transition-colors"
+                            :class="diaperForm.type === 'dirty' ? 'border-yellow-500 bg-yellow-50 text-yellow-600' : 'border-gray-200 bg-gray-50 text-gray-500'">
+                        💩 脏
+                    </button>
+                    <button @click="diaperForm.type = 'mixed'"
+                            class="py-4 rounded-xl border-2 font-semibold transition-colors"
+                            :class="diaperForm.type === 'mixed' ? 'border-purple-500 bg-purple-50 text-purple-600' : 'border-gray-200 bg-gray-50 text-gray-500'">
+                        💧💩 混合
+                    </button>
+                </div>
+
+                <label class="block text-sm font-semibold text-gray-700 mb-2">时间</label>
+                <input type="datetime-local" v-model="diaperForm.dateTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+
+                <label class="block text-sm font-semibold text-gray-700 mb-2">备注 (可选)</label>
+                <textarea v-model="diaperForm.note" class="input-field w-full text-lg py-3 px-4 min-h-[80px] mb-4" placeholder="记录异常情况、皮肤状态等..."></textarea>
+
+                <!-- 保存按钮 -->
+                <button @click="saveDiaperRecord" class="w-full py-4 btn-primary text-lg mt-4">
+                    💾 保存记录
+                </button>
+            </div>
+        </div>
+
+        <!-- 设置弹窗 -->
+        <div v-if="showSettingsModal" class="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" @click.self="showSettingsModal = false">
+            <div class="modal-content w-full max-w-md p-6" style="max-height: 90vh;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">⚙️ 宝宝设置</h3>
+                    <button @click="showSettingsModal = false" class="text-gray-400">✕</button>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">宝宝名字</label>
+                        <input type="text" v-model="currentBaby.name" class="input-field w-full text-lg py-3 px-4">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">月龄</label>
+                        <input type="number" v-model.number="currentBaby.ageMonth" class="input-field w-full text-lg py-3 px-4" min="0" max="36">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">预计起床时间</label>
+                        <input type="time" v-model="currentBaby.wakeTimeTarget" class="input-field w-full text-lg py-3 px-4">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">预计睡觉时间</label>
+                        <input type="time" v-model="currentBaby.bedTimeTarget" class="input-field w-full text-lg py-3 px-4">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">每日小睡次数</label>
+                        <input type="number" v-model.number="currentBaby.napCountTarget" class="input-field w-full text-lg py-3 px-4" min="1" max="5">
+                    </div>
+
+                    <div class="pt-4">
+                        <button @click="saveSettings" class="w-full py-4 btn-primary text-lg">
+                            💾 保存设置
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 编辑记录弹窗 -->
+        <div v-if="showEditModal" class="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" @click.self="showEditModal = false">
+            <div class="modal-content w-full max-w-md p-6" style="max-height: 90vh;">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">编辑记录</h3>
+                    <button @click="showEditModal = false" class="text-gray-400">✕</button>
+                </div>
+
+                <!-- 根据记录类型显示不同表单 -->
+                <div v-if="editingRecord.type === 'sleep'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">入睡时间</label>
+                    <input type="datetime-local" v-model="editingRecord.startDateTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+                    
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">醒来时间</label>
+                    <input type="datetime-local" v-model="editingRecord.endDateTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+                </div>
+
+                <div v-if="editingRecord.type === 'feeding'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">喂养类型</label>
+                    <select v-model="editingRecord.feedingType" class="input-field w-full text-lg py-3 px-4 mb-4">
+                        <option value="瓶喂">瓶喂</option>
+                        <option value="母乳">母乳</option>
+                        <option value="辅食">辅食</option>
+                        <option value="补剂">补剂</option>
+                    </select>
+
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">喂养时间</label>
+                    <input type="datetime-local" v-model="editingRecord.dateTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+
+                    <div v-if="editingRecord.feedingType === '瓶喂'">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">奶量 (ml)</label>
+                        <input type="number" v-model.number="editingRecord.amount" class="input-field w-full text-lg py-3 px-4 mb-4">
+                    </div>
+                </div>
+
+                <div v-if="editingRecord.type === 'diaper'">
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">尿布类型</label>
+                    <select v-model="editingRecord.diaperType" class="input-field w-full text-lg py-3 px-4 mb-4">
+                        <option value="wet">湿尿布</option>
+                        <option value="dirty">脏尿布</option>
+                        <option value="mixed">混合尿布</option>
+                    </select>
+
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">时间</label>
+                    <input type="datetime-local" v-model="editingRecord.dateTime" class="input-field w-full text-lg py-3 px-4 mb-4">
+                </div>
+
+                <!-- 通用备注 -->
+                <label class="block text-sm font-semibold text-gray-700 mb-2">备注</label>
+                <textarea v-model="editingRecord.note" class="input-field w-full text-lg py-3 px-4 min-h-[80px] mb-4"></textarea>
+
+                <!-- 保存按钮 -->
+                <button @click="saveEditRecord" class="w-full py-4 btn-primary text-lg mt-4">
+                    💾 保存修改
+                </button>
+            </div>
+        </div>
+
+        <!-- 筛选弹窗 -->
+        <div v-if="showFilterModal" class="fixed inset-0 bg-black/40 z-50 flex items-end justify-center" @click.self="showFilterModal = false">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">🔍 筛选记录</h3>
+                    <button @click="showFilterModal = false" class="text-gray-400">✕</button>
+                </div>
+
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">记录类型</label>
+                        <div class="grid grid-cols-3 gap-2">
+                            <label class="flex items-center space-x-2 p-3 border-2 rounded-xl cursor-pointer" 
+                                   :class="filterTypes.sleep ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50'">
+                                <input type="checkbox" v-model="filterTypes.sleep" class="accent-purple-600">
+                                <span>😴 睡眠</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 border-2 rounded-xl cursor-pointer"
+                                   :class="filterTypes.feeding ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50'">
+                                <input type="checkbox" v-model="filterTypes.feeding" class="accent-purple-600">
+                                <span>🍼 喂养</span>
+                            </label>
+                            <label class="flex items-center space-x-2 p-3 border-2 rounded-xl cursor-pointer"
+                                   :class="filterTypes.diaper ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-gray-50'">
+                                <input type="checkbox" v-model="filterTypes.diaper" class="accent-purple-600">
+                                <span>💩 尿布</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-3">时间范围</label>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-xs text-gray-500 mb-1 block">开始日期</label>
+                                <input type="date" v-model="filterDate.start" class="input-field w-full text-lg py-3 px-4">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500 mb-1 block">结束日期</label>
+                                <input type="date" v-model="filterDate.end" class="input-field w-full text-lg py-3 px-4">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-4">
+                        <button @click="resetFilter" class="py-4 btn-secondary text-lg">
+                            重置
+                        </button>
+                        <button @click="applyFilter" class="py-4 btn-primary text-lg">
+                            应用筛选
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        // 本地存储工具
+        const Storage = {
+            get(key, defaultValue = null) {
+                try {
+                    const value = localStorage.getItem(key);
+                    return value ? JSON.parse(value) : defaultValue;
+                } catch (e) {
+                    return defaultValue;
+                }
+            },
+            set(key, value) {
+                try {
+                    localStorage.setItem(key, JSON.stringify(value));
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+        };
+
+        // 数据库模拟
+        const DB = {
+            records: Storage.get('smartbaby_records', []),
+            babies: Storage.get('smartbaby_babies', {
+                'baby_001': {
+                    id: 'baby_001',
+                    name: '豆豆',
+                    age: '4个月',
+                    emoji: '👶',
+                    ageMonth: 4,
+                    napCountTarget: 3,
+                    bedTimeTarget: '20:00',
+                    wakeTimeTarget: '07:00',
+                    wakeWindow: 120
+                },
+                'baby_002': {
+                    id: 'baby_002',
+                    name: '苗苗',
+                    age: '8个月',
+                    emoji: '👧',
+                    ageMonth: 8,
+                    napCountTarget: 2,
+                    bedTimeTarget: '20:30',
+                    wakeTimeTarget: '07:30',
+                    wakeWindow: 180
+                }
+            }),
+            
+            initMockData(babyId) {
+                const existing = this.records.filter(r => r.babyId === babyId);
+                if (existing.length > 10) return;
+                
+                const today = new Date();
+                for (let dayOffset = -14; dayOffset <= 0; dayOffset++) {
+                    const date = new Date(today);
+                    date.setDate(today.getDate() + dayOffset);
+                    
+                    // 喂奶记录
+                    const feedingTimes = ['06:30', '09:30', '12:30', '15:30', '18:30', '21:30'];
+                    feedingTimes.forEach((time, index) => {
+                        const [hours, minutes] = time.split(':').map(Number);
+                        const recordDate = new Date(date);
+                        recordDate.setHours(hours, minutes, 0, 0);
+                        
+                        this.records.push({
+                            id: `feeding_${Date.now() + index}`,
+                            babyId: babyId,
+                            type: 'feeding',
+                            feedingType: '瓶喂',
+                            amount: 140 + Math.floor(Math.random() * 30),
+                            time: time,
+                            date: recordDate.toLocaleDateString(),
+                            timestamp: recordDate.getTime(),
+                            note: ''
+                        });
+                    });
+                    
+                    // 睡眠记录
+                    const sleepPeriods = [
+                        { start: '08:00', end: '09:30', duration: 90 },
+                        { start: '12:00', end: '13:30', duration: 90 },
+                        { start: '16:00', end: '17:30', duration: 90 },
+                        { start: '21:00', end: '07:00', duration: 600 }
+                    ];
+                    
+                    sleepPeriods.forEach((period, index) => {
+                        const [startHours, startMinutes] = period.start.split(':').map(Number);
+                        const [endHours, endMinutes] = period.end.split(':').map(Number);
+                        const recordDate = new Date(date);
+                        recordDate.setHours(startHours, startMinutes, 0, 0);
+                        const endDate = new Date(date);
+                        endDate.setHours(endHours, endMinutes, 0, 0);
+                        
+                        this.records.push({
+                            id: `sleep_${Date.now() + index + 10}`,
+                            babyId: babyId,
+                            type: 'sleep',
+                            duration: period.duration * 60,
+                            durationText: `${Math.floor(period.duration / 60)}小时${period.duration % 60}分钟`,
+                            startTime: period.start,
+                            endTime: period.end,
+                            time: period.start,
+                            date: recordDate.toLocaleDateString(),
+                            timestamp: recordDate.getTime(),
+                            endTimestamp: endDate.getTime(),
+                            note: ''
+                        });
+                    });
+                    
+                    // 尿布记录
+                    for (let i = 0; i < 8; i++) {
+                        const hour = 6 + Math.floor(Math.random() * 16);
+                        const minute = Math.floor(Math.random() * 60);
+                        const time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                        const types = ['wet', 'dirty', 'mixed'];
+                        
+                        const recordDate = new Date(date);
+                        recordDate.setHours(hour, minute, 0, 0);
+                        
+                        this.records.push({
+                            id: `diaper_${Date.now() + i + 20}`,
+                            babyId: babyId,
+                            type: 'diaper',
+                            diaperType: types[Math.floor(Math.random() * 3)],
+                            time: time,
+                            date: recordDate.toLocaleDateString(),
+                            timestamp: recordDate.getTime(),
+                            note: ''
+                        });
+                    }
+                }
+                
+                this.saveRecords();
+            },
+            
+            getBabyRecords(babyId) {
+                return this.records.filter(r => r.babyId === babyId)
+                    .sort((a, b) => a.timestamp - b.timestamp);
+            },
+            
+            addRecord(record) {
+                this.records.unshift(record);
+                this.saveRecords();
+            },
+            
+            updateRecord(recordId, updatedData) {
+                const index = this.records.findIndex(r => r.id === recordId);
+                if (index !== -1) {
+                    this.records[index] = { ...this.records[index], ...updatedData };
+                    this.saveRecords();
+                }
+            },
+            
+            deleteRecord(recordId) {
+                this.records = this.records.filter(r => r.id !== recordId);
+                this.saveRecords();
+            },
+            
+            saveRecords() {
+                Storage.set('smartbaby_records', this.records);
+            },
+            
+            saveBabies() {
+                Storage.set('smartbaby_babies', this.babies);
+            }
+        };
+
+        createApp({
+            data() {
+                return {
+                    currentPage: 'log',
+                    currentPeriod: '周',
+                    currentFilter: '日',
+                    showSleepModal: false,
+                    showFeedingModal: false,
+                    showDiaperModal: false,
+                    showSettingsModal: false,
+                    showEditModal: false,
+                    showFilterModal: false,
+                    
+                    currentDate: new Date(),
+                    currentBabyId: 'baby_001',
+                    babies: DB.babies,
+
+                    activeTimer: {
+                        type: null,
+                        duration: 0,
+                        paused: false,
+                        intervalId: null,
+                        startTime: null
+                    },
+
+                    sleepForm: {
+                        mode: 'timer',
+                        startTime: '',
+                        endTime: '',
+                        note: ''
+                    },
+
+                    feedingForm: {
+                        type: '瓶喂',
+                        dateTime: '',
+                        amount: 150,
+                        leftDuration: 15,
+                        rightDuration: 15,
+                        foodType: '',
+                        foodAmount: '',
+                        supplementName: '',
+                        supplementDose: '',
+                        note: ''
+                    },
+                    
+                    diaperForm: {
+                        type: 'wet',
+                        dateTime: '',
+                        note: ''
+                    },
+
+                    editingRecord: {},
+                    filterTypes: {
+                        sleep: true,
+                        feeding: true,
+                        diaper: true
+                    },
+                    filterDate: {
+                        start: '',
+                        end: ''
+                    },
+                    chartInstances: {},
+                    db: DB
+                };
+            },
+            computed: {
+                currentBaby() {
+                    return this.babies[this.currentBabyId];
+                },
+                
+                currentDateDisplay() {
+                    if (this.currentFilter === '日') {
+                        const today = new Date();
+                        const compareDate = new Date(this.currentDate);
+                        
+                        if (compareDate.toDateString() === today.toDateString()) {
+                            return '今天';
+                        }
+                        
+                        const yesterday = new Date(today);
+                        yesterday.setDate(today.getDate() - 1);
+                        if (compareDate.toDateString() === yesterday.toDateString()) {
+                            return '昨天';
+                        }
+                        
+                        return `${compareDate.getMonth() + 1}/${compareDate.getDate()}`;
+                    } else if (this.currentFilter === '周') {
+                        const date = new Date(this.currentDate);
+                        const weekStart = new Date(date);
+                        weekStart.setDate(date.getDate() - date.getDay());
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        return `${weekStart.getMonth() + 1}/${weekStart.getDate()} - ${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+                    } else if (this.currentFilter === '月') {
+                        return `${this.currentDate.getFullYear()}年${this.currentDate.getMonth() + 1}月`;
+                    } else {
+                        return '全部记录';
+                    }
+                },
+                
+                currentPeriodDisplay() {
+                    const date = new Date(this.currentDate);
+                    if (this.currentPeriod === '日') {
+                        return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+                    } else if (this.currentPeriod === '周') {
+                        const weekStart = new Date(date);
+                        weekStart.setDate(date.getDate() - date.getDay());
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 6);
+                        return `${weekStart.getMonth() + 1}/${weekStart.getDate()} - ${weekEnd.getMonth() + 1}/${weekEnd.getDate()}`;
+                    } else {
+                        return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+                    }
+                },
+                
+                allBabyRecords() {
+                    return this.db.getBabyRecords(this.currentBabyId);
+                },
+                
+                filteredRecords() {
+                    let records = this.allBabyRecords;
+                    const current = new Date(this.currentDate);
+                    
+                    // 时间筛选
+                    if (this.currentFilter === '日') {
+                        const dateStr = current.toLocaleDateString();
+                        records = records.filter(r => r.date === dateStr);
+                    } else if (this.currentFilter === '周') {
+                        const weekStart = new Date(current);
+                        weekStart.setDate(current.getDate() - current.getDay());
+                        weekStart.setHours(0, 0, 0, 0);
+                        const weekEnd = new Date(weekStart);
+                        weekEnd.setDate(weekStart.getDate() + 7);
+                        records = records.filter(r => r.timestamp >= weekStart.getTime() && r.timestamp < weekEnd.getTime());
+                    } else if (this.currentFilter === '月') {
+                        const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+                        const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 1);
+                        records = records.filter(r => r.timestamp >= monthStart.getTime() && r.timestamp < monthEnd.getTime());
+                    }
+                    
+                    // 自定义时间筛选
+                    if (this.filterDate.start && this.filterDate.end) {
+                        const start = new Date(this.filterDate.start);
+                        const end = new Date(this.filterDate.end);
+                        end.setDate(end.getDate() + 1); // 包含结束日期
+                        records = records.filter(r => r.timestamp >= start.getTime() && r.timestamp < end.getTime());
+                    }
+                    
+                    // 类型筛选
+                    const allowedTypes = [];
+                    if (this.filterTypes.sleep) allowedTypes.push('sleep');
+                    if (this.filterTypes.feeding) allowedTypes.push('feeding');
+                    if (this.filterTypes.diaper) allowedTypes.push('diaper');
+                    records = records.filter(r => allowedTypes.includes(r.type));
+                    
+                    // Sort ascending: early to late by date and time
+                    records.sort((a, b) => a.timestamp - b.timestamp);
+                    return records;
+                },
+
+                currentDayRecords() {
+                    const dateStr = this.currentDate.toLocaleDateString();
+                    return this.db.getBabyRecords(this.currentBabyId).filter(r => r.date === dateStr);
+                },
+                
+                todayStats() {
+                    const records = this.currentDayRecords;
+                    let sleep = 0;
+                    let feeding = 0;
+                    let diaper = 0;
+                    
+                    records.forEach(record => {
+                        if (record.type === 'sleep') {
+                            sleep += (record.duration || 0) / 3600;
+                        } else if (record.type === 'feeding' && record.feedingType === '瓶喂') {
+                            feeding += record.amount || 0;
+                        } else if (record.type === 'diaper') {
+                            diaper++;
+                        }
+                    });
+                    
+                    return {
+                        sleep: sleep.toFixed(1),
+                        feeding: Math.round(feeding),
+                        diaper
+                    };
+                },
+                
+                periodStats() {
+                    return {
+                        averageSleep: '12.5',
+                        averageFeeding: '920',
+                        sleepTrend: 5,
+                        feedingTrend: 8
+                    };
+                },
+                
+                // SweetSpot 计算
+                nextNapTime() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.next_nap_time;
+                },
+
+                sweetSpotTime() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.sweet_spot;
+                },
+
+                sweetSpotLabel() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.is_last_window ? '入夜觉时间' : '下一次最佳小睡时间';
+                },
+
+                isLastWindowLabel() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.is_last_window ? ' (入夜觉)' : '';
+                },
+
+                currentNapIndex() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.nap_index;
+                },
+
+                currentWakeWindow() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.wake_window_min;
+                },
+
+                nextNapCountdown() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    return sweetSpot.countdown_min;
+                },
+                
+                wakeWindowProgress() {
+                    const sweetSpot = this.calculateSweetSpot();
+                    const total = sweetSpot.wake_window_min;
+                    const elapsed = total - sweetSpot.countdown_min;
+                    return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+                },
+                
+                lastFeeding() {
+                    const feedingRecords = this.currentDayRecords.filter(r => r.type === 'feeding');
+                    if (feedingRecords.length > 0) {
+                        return feedingRecords[0];
+                    }
+                    return null;
+                }
+            },
+            methods: {
+                // SweetSpot AI 核心算法 - 严格按照用户提供的公式
+                calculateSweetSpot() {
+                    const baby = this.currentBaby;
+                    const age_month = baby.ageMonth;
+                    const nap_count_target = baby.napCountTarget;
+
+                    // STEP 1: Base Wake Window
+                    let base_ww;
+                    if (age_month <= 1) base_ww = 50;
+                    else if (age_month <= 2) base_ww = 70;
+                    else if (age_month <= 3) base_ww = 85;
+                    else if (age_month <= 4) base_ww = 100;
+                    else if (age_month <= 5) base_ww = 115;
+                    else if (age_month <= 6) base_ww = 135;
+                    else if (age_month <= 7) base_ww = 150;
+                    else if (age_month <= 8) base_ww = 165;
+                    else if (age_month <= 10) base_ww = 180;
+                    else base_ww = 210;
+
+                    // 获取今日睡眠记录，按时间排序
+                    const todayStr = new Date().toLocaleDateString();
+                    const todaySleepRecords = this.db.records
+                        .filter(r => r.babyId === this.currentBabyId && r.type === 'sleep' && r.date === todayStr)
+                        .sort((a, b) => a.timestamp - b.timestamp);
+
+                    // 确定 nap_index（下一个将要睡的觉是第几觉）
+                    const nap_index = todaySleepRecords.length + 1;
+                    // 是否为入夜觉前最后一个清醒窗口
+                    const is_last_window = nap_index > nap_count_target;
+
+                    // 确定 last_sleep_end 和 last_nap_duration
+                    let last_sleep_end = null;
+                    let last_nap_duration = 0;
+
+                    // 获取所有该宝宝的睡眠记录
+                    const allSleepRecords = this.db.records
+                        .filter(r => r.babyId === this.currentBabyId && r.type === 'sleep')
+                        .sort((a, b) => a.timestamp - b.timestamp);
+
+                    if (allSleepRecords.length > 0) {
+                        const lastSleep = allSleepRecords[allSleepRecords.length - 1];
+                        if (lastSleep.endTimestamp) {
+                            last_sleep_end = new Date(lastSleep.endTimestamp);
+                        } else {
+                            last_sleep_end = new Date(lastSleep.timestamp + (lastSleep.duration || 0) * 1000);
+                        }
+                        last_nap_duration = (lastSleep.duration || 0) / 60; // 转换为分钟
+                    } else {
+                        // 没有睡眠记录，使用设置的起床时间
+                        if (baby.wakeTimeTarget) {
+                            const [wh, wm] = baby.wakeTimeTarget.split(':').map(Number);
+                            last_sleep_end = new Date();
+                            last_sleep_end.setHours(wh, wm, 0, 0);
+                            if (last_sleep_end > new Date()) {
+                                last_sleep_end.setDate(last_sleep_end.getDate() - 1);
+                            }
+                        } else {
+                            last_sleep_end = new Date();
+                        }
+                    }
+
+                    // STEP 2: WW Pattern
+                    let WW_arr = {};
+                    let WW_last;
+                    if (nap_count_target === 3) {
+                        WW_arr[1] = base_ww * 0.82;
+                        WW_arr[2] = base_ww * 0.90;
+                        WW_arr[3] = base_ww * 0.90;
+                        WW_last = base_ww * 1.00;
+                    } else if (nap_count_target === 2) {
+                        WW_arr[1] = base_ww * 0.90;
+                        WW_arr[2] = base_ww * 1.05;
+                        WW_last = base_ww * 1.15;
+                    } else if (nap_count_target === 1) {
+                        WW_arr[1] = base_ww * 1.00;
+                        WW_last = base_ww * 1.20;
+                    } else {
+                        // 默认
+                        WW_arr[1] = base_ww * 0.90;
+                        WW_last = base_ww * 1.15;
+                        for (let i = 2; i <= nap_count_target; i++) {
+                            WW_arr[i] = base_ww * 1.00;
+                        }
+                    }
+
+                    // STEP 3: Select WW
+                    let WW;
+                    if (is_last_window) {
+                        WW = WW_last;
+                    } else {
+                        WW = WW_arr[nap_index] || base_ww;
+                    }
+
+                    // STEP 4: Nap Duration Adjustment
+                    if (last_nap_duration > 0 && last_nap_duration < 30) {
+                        WW = WW * 0.90;
+                    }
+                    if (last_nap_duration > 90) {
+                        WW = WW * 1.05;
+                    }
+
+                    // STEP 5: Clamp
+                    WW = Math.max(base_ww * 0.75, Math.min(WW, base_ww * 1.25));
+
+                    // STEP 6: Bedtime Override
+                    let next_sleep_time;
+                    if (is_last_window && baby.bedTimeTarget) {
+                        const [bh, bm] = baby.bedTimeTarget.split(':').map(Number);
+                        next_sleep_time = new Date();
+                        next_sleep_time.setHours(bh, bm, 0, 0);
+                        // 如果入夜时间已过，显示明天的
+                        if (next_sleep_time < new Date()) {
+                            next_sleep_time.setDate(next_sleep_time.getDate() + 1);
+                        }
+                    } else {
+                        next_sleep_time = new Date(last_sleep_end.getTime() + WW * 60 * 1000);
+                    }
+
+                    // STEP 7: SweetSpot
+                    const sweet_spot = new Date(next_sleep_time.getTime() - 10 * 60 * 1000);
+
+                    // 计算倒计时
+                    const now = new Date();
+                    let countdown_min = Math.round((next_sleep_time.getTime() - now.getTime()) / (1000 * 60));
+                    countdown_min = Math.max(0, countdown_min);
+
+                    const formatT = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+
+                    return {
+                        next_nap_time: formatT(next_sleep_time),
+                        sweet_spot: formatT(sweet_spot),
+                        wake_window_min: Math.round(WW),
+                        countdown_min: countdown_min,
+                        is_last_window: is_last_window,
+                        nap_index: nap_index
+                    };
+                },
+                
+                // 宝宝切换
+                switchBaby(babyId) {
+                    this.currentBabyId = babyId;
+                    if (this.currentPage === 'stats') {
+                        this.$nextTick(() => {
+                            this.initCharts();
+                        });
+                    }
+                },
+                
+                // 日期导航
+                prevPeriod() {
+                    const date = new Date(this.currentDate);
+                    if (this.currentPage === 'log') {
+                        if (this.currentFilter === '日') {
+                            date.setDate(date.getDate() - 1);
+                        } else if (this.currentFilter === '周') {
+                            date.setDate(date.getDate() - 7);
+                        } else if (this.currentFilter === '月') {
+                            date.setMonth(date.getMonth() - 1);
+                        }
+                    } else {
+                        if (this.currentPeriod === '日') {
+                            date.setDate(date.getDate() - 1);
+                        } else if (this.currentPeriod === '周') {
+                            date.setDate(date.getDate() - 7);
+                        } else {
+                            date.setMonth(date.getMonth() - 1);
+                        }
+                        if (this.currentPage === 'stats') {
+                            this.$nextTick(() => {
+                                this.initCharts();
+                            });
+                        }
+                    }
+                    this.currentDate = date;
+                },
+                
+                nextPeriod() {
+                    const date = new Date(this.currentDate);
+                    if (this.currentPage === 'log') {
+                        if (this.currentFilter === '日') {
+                            date.setDate(date.getDate() + 1);
+                        } else if (this.currentFilter === '周') {
+                            date.setDate(date.getDate() + 7);
+                        } else if (this.currentFilter === '月') {
+                            date.setMonth(date.getMonth() + 1);
+                        }
+                    } else {
+                        if (this.currentPeriod === '日') {
+                            date.setDate(date.getDate() + 1);
+                        } else if (this.currentPeriod === '周') {
+                            date.setDate(date.getDate() + 7);
+                        } else {
+                            date.setMonth(date.getMonth() + 1);
+                        }
+                        if (this.currentPage === 'stats') {
+                            this.$nextTick(() => {
+                                this.initCharts();
+                            });
+                        }
+                    }
+                    this.currentDate = date;
+                },
+                
+                changePeriod(period) {
+                    this.currentPeriod = period;
+                    this.$nextTick(() => {
+                        this.initCharts();
+                    });
+                },
+                
+                // 计时器功能
+                startSleepTimer() {
+                    if (this.activeTimer.type) return;
+                    
+                    this.activeTimer.type = 'sleep';
+                    this.activeTimer.duration = 0;
+                    this.activeTimer.paused = false;
+                    this.activeTimer.startTime = new Date();
+                    
+                    this.activeTimer.intervalId = setInterval(() => {
+                        if (!this.activeTimer.paused) {
+                            this.activeTimer.duration++;
+                        }
+                    }, 1000);
+                },
+                
+                stopTimer() {
+                    if (this.activeTimer.intervalId) {
+                        clearInterval(this.activeTimer.intervalId);
+                    }
+                    
+                    const duration = this.activeTimer.duration;
+                    const hours = Math.floor(duration / 3600);
+                    const minutes = Math.floor((duration % 3600) / 60);
+                    
+                    // 保存睡眠记录
+                    const recordDate = new Date(this.activeTimer.startTime);
+                    const endDate = new Date();
+                    
+                    const record = {
+                        id: `sleep_${Date.now()}`,
+                        babyId: this.currentBabyId,
+                        type: 'sleep',
+                        duration: duration,
+                        durationText: `${hours}小时${minutes}分钟`,
+                        startTime: this.formatTime(recordDate),
+                        endTime: this.formatTime(endDate),
+                        time: this.formatTime(endDate),
+                        date: recordDate.toLocaleDateString(),
+                        timestamp: recordDate.getTime(),
+                        endTimestamp: endDate.getTime(),
+                        note: ''
+                    };
+                    
+                    this.db.addRecord(record);
+                    
+                    // 重置计时器
+                    this.activeTimer = {
+                        type: null,
+                        duration: 0,
+                        paused: false,
+                        intervalId: null,
+                        startTime: null
+                    };
+                    
+                    this.showSleepModal = false;
+                    this.showToast('睡眠记录已保存');
+                },
+                
+                pauseTimer() {
+                    this.activeTimer.paused = true;
+                },
+                
+                resumeTimer() {
+                    this.activeTimer.paused = false;
+                },
+                
+                resetTimer() {
+                    this.activeTimer.duration = 0;
+                },
+                
+                // 弹窗控制
+                openSleepModal() {
+                    this.showSleepModal = true;
+                    this.sleepForm.mode = 'timer';
+                    
+                    // 设置默认时间
+                    const now = new Date();
+                    const nowStr = now.toISOString().slice(0, 16);
+                    const end = new Date(now.getTime() + 3600000).toISOString().slice(0, 16);
+                    this.sleepForm.startTime = nowStr;
+                    this.sleepForm.endTime = end;
+                },
+                
+                openFeedingModal() {
+                    this.showFeedingModal = true;
+                    this.feedingForm.dateTime = new Date().toISOString().slice(0, 16);
+                    this.feedingForm.note = '';
+                },
+                
+                openDiaperModal() {
+                    this.showDiaperModal = true;
+                    this.diaperForm.dateTime = new Date().toISOString().slice(0, 16);
+                    this.diaperForm.note = '';
+                },
+                
+                closeAllModals() {
+                    this.showSleepModal = false;
+                    this.showFeedingModal = false;
+                    this.showDiaperModal = false;
+                    this.showSettingsModal = false;
+                    this.showEditModal = false;
+                    this.showFilterModal = false;
+                },
+                
+                // 保存记录
+                saveSleepRecord() {
+                    if (this.sleepForm.mode !== 'manual') return;
+                    
+                    const startDate = new Date(this.sleepForm.startTime);
+                    const endDate = new Date(this.sleepForm.endTime);
+                    const duration = (endDate - startDate) / 1000;
+                    const hours = Math.floor(duration / 3600);
+                    const minutes = Math.floor((duration % 3600) / 60);
+                    
+                    const record = {
+                        id: `sleep_${Date.now()}`,
+                        babyId: this.currentBabyId,
+                        type: 'sleep',
+                        duration: duration,
+                        durationText: `${hours}小时${minutes}分钟`,
+                        startTime: this.formatTime(startDate),
+                        endTime: this.formatTime(endDate),
+                        time: this.formatTime(endDate),
+                        date: startDate.toLocaleDateString(),
+                        timestamp: startDate.getTime(),
+                        endTimestamp: endDate.getTime(),
+                        note: this.sleepForm.note
+                    };
+                    
+                    this.db.addRecord(record);
+                    this.showSleepModal = false;
+                    this.showToast('睡眠记录已保存');
+                },
+                
+                saveFeedingRecord() {
+                    const date = new Date(this.feedingForm.dateTime);
+                    
+                    const record = {
+                        id: `feeding_${Date.now()}`,
+                        babyId: this.currentBabyId,
+                        type: 'feeding',
+                        feedingType: this.feedingForm.type,
+                        amount: this.feedingForm.amount,
+                        leftDuration: this.feedingForm.leftDuration,
+                        rightDuration: this.feedingForm.rightDuration,
+                        foodType: this.feedingForm.foodType,
+                        foodAmount: this.feedingForm.foodAmount,
+                        supplementName: this.feedingForm.supplementName,
+                        supplementDose: this.feedingForm.supplementDose,
+                        time: this.formatTime(date),
+                        date: date.toLocaleDateString(),
+                        timestamp: date.getTime(),
+                        note: this.feedingForm.note
+                    };
+                    
+                    this.db.addRecord(record);
+                    this.showFeedingModal = false;
+                    this.showToast('喂养记录已保存');
+                },
+                
+                saveDiaperRecord() {
+                    const date = new Date(this.diaperForm.dateTime);
+                    
+                    const record = {
+                        id: `diaper_${Date.now()}`,
+                        babyId: this.currentBabyId,
+                        type: 'diaper',
+                        diaperType: this.diaperForm.type,
+                        time: this.formatTime(date),
+                        date: date.toLocaleDateString(),
+                        timestamp: date.getTime(),
+                        note: this.diaperForm.note
+                    };
+                    
+                    this.db.addRecord(record);
+                    this.showDiaperModal = false;
+                    this.showToast('尿布记录已保存');
+                },
+                
+                // 设置功能
+                saveSettings() {
+                    this.currentBaby.age = `${this.currentBaby.ageMonth}个月`;
+                    // Recalculate base wake window for display
+                    const am = this.currentBaby.ageMonth;
+                    let bww;
+                    if (am <= 1) bww = 50;
+                    else if (am <= 2) bww = 70;
+                    else if (am <= 3) bww = 85;
+                    else if (am <= 4) bww = 100;
+                    else if (am <= 5) bww = 115;
+                    else if (am <= 6) bww = 135;
+                    else if (am <= 7) bww = 150;
+                    else if (am <= 8) bww = 165;
+                    else if (am <= 10) bww = 180;
+                    else bww = 210;
+                    this.currentBaby.wakeWindow = bww;
+                    this.db.saveBabies();
+                    this.showSettingsModal = false;
+                    this.showToast('设置已保存');
+                },
+                
+                // 编辑删除记录
+                editRecord(record) {
+                    this.editingRecord = { ...record };
+                    
+                    if (this.editingRecord.type === 'sleep') {
+                        const start = new Date(this.editingRecord.timestamp);
+                        const end = new Date(this.editingRecord.endTimestamp || (this.editingRecord.timestamp + this.editingRecord.duration * 1000));
+                        this.editingRecord.startDateTime = start.toISOString().slice(0, 16);
+                        this.editingRecord.endDateTime = end.toISOString().slice(0, 16);
+                    } else {
+                        const date = new Date(this.editingRecord.timestamp);
+                        this.editingRecord.dateTime = date.toISOString().slice(0, 16);
+                    }
+                    
+                    this.showEditModal = true;
+                },
+                
+                saveEditRecord() {
+                    if (this.editingRecord.type === 'sleep') {
+                        const start = new Date(this.editingRecord.startDateTime);
+                        const end = new Date(this.editingRecord.endDateTime);
+                        const duration = (end - start) / 1000;
+                        const hours = Math.floor(duration / 3600);
+                        const minutes = Math.floor((duration % 3600) / 60);
+                        
+                        this.editingRecord.duration = duration;
+                        this.editingRecord.durationText = `${hours}小时${minutes}分钟`;
+                        this.editingRecord.startTime = this.formatTime(start);
+                        this.editingRecord.endTime = this.formatTime(end);
+                        this.editingRecord.timestamp = start.getTime();
+                        this.editingRecord.endTimestamp = end.getTime();
+                        this.editingRecord.date = start.toLocaleDateString();
+                        this.editingRecord.time = this.formatTime(end);
+                    } else {
+                        const date = new Date(this.editingRecord.dateTime);
+                        this.editingRecord.timestamp = date.getTime();
+                        this.editingRecord.date = date.toLocaleDateString();
+                        this.editingRecord.time = this.formatTime(date);
+                    }
+                    
+                    this.db.updateRecord(this.editingRecord.id, this.editingRecord);
+                    this.showEditModal = false;
+                    this.showToast('记录已更新');
+                },
+                
+                deleteRecord(record) {
+                    if (confirm('确定要删除这条记录吗？此操作不可恢复。')) {
+                        this.db.deleteRecord(record.id);
+                        this.showToast('记录已删除');
+                    }
+                },
+                
+                // 筛选功能
+                resetFilter() {
+                    this.filterTypes = {
+                        sleep: true,
+                        feeding: true,
+                        diaper: true
+                    };
+                    this.filterDate.start = '';
+                    this.filterDate.end = '';
+                },
+                
+                applyFilter() {
+                    this.showFilterModal = false;
+                    this.showToast('筛选已应用');
+                },
+                
+                // 导出Excel
+                exportExcel() {
+                    const records = this.allBabyRecords;
+                    const exportData = records.map(record => {
+                        const date = new Date(record.timestamp);
+                        return {
+                            '日期': record.date,
+                            '时间': record.time,
+                            '类型': this.getRecordTypeText(record.type),
+                            '详情': this.getRecordTitle(record),
+                            '详细信息': this.getRecordDetail(record),
+                            '备注': record.note || '',
+                            '时间戳': record.timestamp
+                        };
+                    });
+                    
+                    const worksheet = XLSX.utils.json_to_sheet(exportData);
+                    const workbook = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(workbook, worksheet, '育儿记录');
+                    
+                    const babyName = this.currentBaby.name;
+                    const dateStr = new Date().toISOString().slice(0, 10);
+                    XLSX.writeFile(workbook, `${babyName}_育儿记录_${dateStr}.xlsx`);
+                    
+                    this.showToast('Excel导出成功');
+                },
+                
+                // 切换到数据页
+                switchToStats() {
+                    this.currentPage = 'stats';
+                    this.$nextTick(() => {
+                        this.initCharts();
+                    });
+                },
+                
+                // 图表初始化 - 修复坐标轴自动切换
+                initCharts() {
+                    // 销毁旧图表
+                    Object.values(this.chartInstances).forEach(chart => chart.destroy());
+                    
+                    // 获取图表数据
+                    const labels = this.getChartLabels();
+                    const sleepData = this.getSleepChartData();
+                    const feedingData = this.getFeedingChartData();
+                    
+                    // 睡眠趋势图
+                    const sleepCtx = document.getElementById('sleepChart').getContext('2d');
+                    this.chartInstances.sleepChart = new Chart(sleepCtx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: '总睡眠时间 (小时)',
+                                data: sleepData,
+                                borderColor: '#667eea',
+                                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: this.getAxisLabel()
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: '小时'
+                                    },
+                                    min: 0
+                                }
+                            }
+                        }
+                    });
+
+                    // 喂奶量趋势图
+                    const feedingCtx = document.getElementById('feedingChart').getContext('2d');
+                    this.chartInstances.feedingChart = new Chart(feedingCtx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: '喂奶量 (ml)',
+                                data: feedingData,
+                                backgroundColor: '#ff6b6b',
+                                borderRadius: 8
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: this.getAxisLabel()
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: '毫升'
+                                    },
+                                    min: 0
+                                }
+                            }
+                        }
+                    });
+                },
+                
+                getAxisLabel() {
+                    if (this.currentPeriod === '日') {
+                        return '时间';
+                    } else if (this.currentPeriod === '周') {
+                        return '星期';
+                    } else {
+                        return '日期';
+                    }
+                },
+                
+                getChartLabels() {
+                    if (this.currentPeriod === '日') {
+                        return ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'];
+                    } else if (this.currentPeriod === '周') {
+                        return ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+                    } else {
+                        const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
+                        return Array.from({length: daysInMonth}, (_, i) => `${i + 1}日`);
+                    }
+                },
+                
+                getSleepChartData() {
+                    if (this.currentPeriod === '日') {
+                        return [0, 0, 1, 1.5, 1.5, 1.5, 0, 6];
+                    } else if (this.currentPeriod === '周') {
+                        if (this.currentBabyId === 'baby_001') {
+                            return [11.5, 12.0, 11.8, 12.2, 12.5, 13.0, 12.5];
+                        } else {
+                            return [10.2, 10.5, 10.0, 10.8, 11.0, 11.5, 11.2];
+                        }
+                    } else {
+                        // 月数据
+                        const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
+                        return Array.from({length: daysInMonth}, () => {
+                            return this.currentBabyId === 'baby_001' 
+                                ? 12 + Math.random() * 1.5 
+                                : 10.5 + Math.random() * 1.5;
+                        });
+                    }
+                },
+                
+                getFeedingChartData() {
+                    if (this.currentPeriod === '日') {
+                        return [0, 0, 150, 160, 140, 170, 160, 150];
+                    } else if (this.currentPeriod === '周') {
+                        if (this.currentBabyId === 'baby_001') {
+                            return [900, 920, 880, 950, 940, 960, 930];
+                        } else {
+                            return [1200, 1250, 1220, 1280, 1260, 1300, 1270];
+                        }
+                    } else {
+                        // 月数据
+                        const daysInMonth = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 0).getDate();
+                        return Array.from({length: daysInMonth}, () => {
+                            return this.currentBabyId === 'baby_001' 
+                                ? 900 + Math.random() * 100 
+                                : 1200 + Math.random() * 150;
+                        });
+                    }
+                },
+                
+                // 辅助函数
+                formatTime(date) {
+                    if (typeof date === 'object') {
+                        const hours = date.getHours();
+                        const minutes = date.getMinutes();
+                        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+                    }
+                    // 处理秒数格式
+                    const hours = Math.floor(date / 3600);
+                    const minutes = Math.floor((date % 3600) / 60);
+                    const secs = date % 60;
+                    return {
+                        hours: String(hours).padStart(2, '0'),
+                        minutes: String(minutes).padStart(2, '0'),
+                        seconds: String(secs).padStart(2, '0')
+                    };
+                },
+                
+                getRecordTypeText(type) {
+                    const typeMap = {
+                        'sleep': '睡眠',
+                        'feeding': '喂养',
+                        'diaper': '尿布'
+                    };
+                    return typeMap[type] || type;
+                },
+                
+                getRecordTitle(record) {
+                    if (record.type === 'feeding') {
+                        if (record.feedingType === '瓶喂') {
+                            return `喂奶 ${record.amount}ml`;
+                        } else if (record.feedingType === '母乳') {
+                            return `母乳 左${record.leftDuration || 0}分钟 右${record.rightDuration || 0}分钟`;
+                        } else if (record.feedingType === '辅食') {
+                            return `辅食 ${record.foodType || ''} ${record.foodAmount || ''}`;
+                        } else if (record.feedingType === '补剂') {
+                            return `补剂 ${record.supplementName || ''} ${record.supplementDose || ''}`;
+                        }
+                        return '喂养记录';
+                    } else if (record.type === 'sleep') {
+                        return `睡眠 ${record.durationText || ''}`;
+                    } else if (record.type === 'diaper') {
+                        const typeText = { 'wet': '湿尿布', 'dirty': '脏尿布', 'mixed': '混合尿布' };
+                        return `换${typeText[record.diaperType] || '尿布'}`;
+                    }
+                    return '记录';
+                },
+                
+                getRecordDetail(record) {
+                    if (record.type === 'sleep') {
+                        return `${record.startTime} - ${record.endTime}`;
+                    }
+                    return '';
+                },
+                
+                getRecordColor(record) {
+                    const colorMap = {
+                        'sleep': '#667eea',
+                        'feeding': '#ff6b6b',
+                        'diaper': '#4ecdc4'
+                    };
+                    return colorMap[record.type] || '#667eea';
+                },
+                
+                // 下载HTML文件
+                downloadHTML() {
+                    const htmlContent = document.documentElement.outerHTML;
+                    const blob = new Blob(['<!DOCTYPE html>\n' + htmlContent], { type: 'text/html;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'SmartBaby_育儿记录.html';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.showToast('HTML文件已下载');
+                },
+
+                // 日期选择器回调
+                onDatePick(event) {
+                    const val = event.target.value;
+                    if (val) {
+                        const parts = val.split('-');
+                        const picked = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                        this.currentDate = picked;
+                    }
+                },
+
+                showToast(message) {
+                    const toast = document.createElement('div');
+                    toast.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-white px-6 py-3 rounded-xl z-50 font-medium';
+                    toast.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                    toast.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+                    toast.textContent = message;
+                    document.body.appendChild(toast);
+                    
+                    setTimeout(() => {
+                        toast.style.opacity = '0';
+                        toast.style.transition = 'opacity 0.3s ease';
+                        setTimeout(() => {
+                            document.body.removeChild(toast);
+                        }, 300);
+                    }, 1500);
+                }
+            },
+            mounted() {
+                // 初始化模拟数据
+                this.db.initMockData('baby_001');
+                this.db.initMockData('baby_002');
+                
+                // 设置默认时间
+                const now = new Date();
+                const nowStr = now.toISOString().slice(0, 16);
+                this.sleepForm.startTime = nowStr;
+                this.sleepForm.endTime = new Date(now.getTime() + 3600000).toISOString().slice(0, 16);
+                this.feedingForm.dateTime = nowStr;
+                this.diaperForm.dateTime = nowStr;
+            },
+            beforeUnmount() {
+                if (this.activeTimer.intervalId) {
+                    clearInterval(this.activeTimer.intervalId);
+                }
+                Object.values(this.chartInstances).forEach(chart => chart.destroy());
+            }
+        }).mount('#app');
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"75124c326cb447fe934cde04713ae013","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
